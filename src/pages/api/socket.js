@@ -6,7 +6,7 @@ const ioHandler = (req, res) => {
     const io = new Server(res.socket.server, {
       path: '/api/socket',
       addTrailingSlash: false,
-      transports: ['polling', 'websocket'],
+      transports: ['websocket'],
       cors: {
         origin: '*',
         methods: ['GET', 'POST']
