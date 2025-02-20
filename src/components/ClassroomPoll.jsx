@@ -59,7 +59,7 @@ const AdminView = ({ votes, total, resetAll }) => {
   );
 };
 
-const StudentView = ({ onVote, cooldown }) => {
+const StudentView = ({ onVote, cooldown, votes, total }) => {
   return (
     <Card className="w-full max-w-lg mx-auto">
       <CardHeader>
@@ -73,6 +73,33 @@ const StudentView = ({ onVote, cooldown }) => {
             </Alert>
           )}
           
+          <div className="flex h-16 rounded-lg overflow-hidden">
+            <div 
+              className="bg-green-500 relative transition-all" 
+              style={{width: `${total === 0 ? 33.33 : (votes.green / total) * 100}%`}}
+            >
+              <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white font-bold">
+                {votes.green === 0 ?  "": votes.green}
+              </span>
+            </div>
+            <div 
+              className="bg-yellow-500 relative transition-all" 
+              style={{width: `${total === 0 ? 33.33 : (votes.yellow / total) * 100}%`}}
+            >
+              <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white font-bold">
+                {votes.yellow === 0 ?  "": votes.yellow}
+              </span>
+            </div>
+            <div 
+              className="bg-red-500 relative transition-all" 
+              style={{width: `${total === 0 ? 33.33 : (votes.red / total) * 100}%`}}
+            >
+              <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white font-bold">
+                {votes.red === 0 ?  "": votes.red}
+              </span>
+            </div>
+          </div>
+
           <div className="flex justify-between gap-4">
             <Button 
               className="flex-1 bg-green-500 hover:bg-green-600"
@@ -204,6 +231,8 @@ const ClassroomPoll = () => {
     <StudentView 
       onVote={handleVote}
       cooldown={cooldown}
+      votes={votes}
+      total={total}
     />
   );
 };
