@@ -117,7 +117,7 @@ const ClassroomPoll = () => {
   useEffect(() => {
     // Initialize socket connection
     console.log('Initializing socket connection...')
-    const socketIo = io('http://localhost:3000', {
+    const socketIo = io('https://labs-poll.vercel.app', {
       path: '/api/socket'
     });
 
