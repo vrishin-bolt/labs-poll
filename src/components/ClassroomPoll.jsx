@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert } from '@/components/ui/alert';
-import io from 'socket.io-client'; 
+import PusherClient from 'pusher-js';
 
 const STORAGE_KEY = 'poll_user_id';
 
@@ -103,64 +103,83 @@ const StudentView = ({ onVote, cooldown }) => {
 };
 
 const ClassroomPoll = () => {
-  const [socket, setSocket] = useState(null);
+  const [pusher, setPusher] = useState(null);
+  const [votes, setVotes] = useState({ green: 0, yellow: 0, red: 0 });
   const [isAdmin, setIsAdmin] = useState(false);
-  const [userId, setUserId] = useState('');
-  const [votes, setVotes] = useState({
-    green: 0,
-    yellow: 0,
-    red: 0
-  });
-  
   const [cooldown, setCooldown] = useState(0);
-
+  
   useEffect(() => {
-    // Initialize socket connection
-    console.log('Initializing socket connection...')
-    const socketIo = io('https://labs-poll.vercel.app', {
-      path: '/api/socket',
-      addTrailingSlash: false,  // Important!
-      transports: ['websocket']
-    });
+    // Debug environment variables
+    console.log("Pusher Key:", process.env.NEXT_PUBLIC_PUSHER_KEY);
+    console.log("Pusher Cluster:", process.env.NEXT_PUBLIC_PUSHER_CLUSTER);
 
-    socketIo.on('connect', () => {
-      console.log('Connected to socket server')
-    });
-
-    socketIo.on('vote_update', (newVotes) => {
-      console.log('Received vote update:', newVotes)
-      setVotes(newVotes);
-    });
-
-    // Add this new listener
-    socketIo.on('reset_cooldown', () => {
-      setCooldown(0);  // Reset cooldown when admin resets
-    });
-
-    setSocket(socketIo);
-
-    // Set admin status and user ID
-    setIsAdmin(window.location.search.includes('admin=true'));
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      setUserId(stored);
-    } else {
-      const newId = `user-${Math.random().toString(36).substr(2, 9)}`;
-      localStorage.setItem(STORAGE_KEY, newId);
-      setUserId(newId);
+    if (!process.env.NEXT_PUBLIC_PUSHER_KEY || !process.env.NEXT_PUBLIC_PUSHER_CLUSTER) {
+      console.error("Pusher environment variables are missing!");
+      return;
     }
 
-    return () => {
-      socketIo.disconnect();
-    };
+    // Only create Pusher client if we haven't already
+    if (!pusher) {
+      const pusherClient = new PusherClient(process.env.NEXT_PUBLIC_PUSHER_KEY, {
+        cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
+      });
+
+      setPusher(pusherClient);
+      
+      const channel = pusherClient.subscribe('poll-channel');
+      
+      channel.bind('vote-update', (newVotes) => {
+        setVotes(newVotes);
+      });
+
+      channel.bind('reset-cooldown', () => {
+        setCooldown(0);
+      });
+
+      return () => {
+        pusherClient.unsubscribe('poll-channel');
+        pusherClient.disconnect();
+      };
+    }
+  }, []); // No dependencies since we only want this to run once
+
+  // Set admin status in a separate useEffect
+  useEffect(() => {
+    setIsAdmin(window.location.search.includes('admin=true'));
   }, []);
-  
-  const handleVote = (color) => {
-    if (cooldown > 0 || !socket) return;
+
+  const handleVote = async (color) => {
+    if (cooldown > 0) return;
     
-    console.log('Sending vote:', color)
-    socket.emit('vote', { color, userId });
-    setCooldown(10);
+    try {
+      const response = await fetch('/api/pusher', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'vote', color })
+      });
+      
+      if (!response.ok) throw new Error('Vote failed');
+      
+      setCooldown(10);
+    } catch (error) {
+      console.error('Error voting:', error);
+    }
+  };
+
+  const resetAll = async () => {
+    if (!isAdmin) return;
+    
+    try {
+      const response = await fetch('/api/pusher', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'reset' })
+      });
+      
+      if (!response.ok) throw new Error('Reset failed');
+    } catch (error) {
+      console.error('Error resetting:', error);
+    }
   };
   
   useEffect(() => {
@@ -172,12 +191,7 @@ const ClassroomPoll = () => {
     }
   }, [cooldown]);
   
-  
-  const resetAll = () => {
-    if (!isAdmin || !socket) return;
-    socket.emit('reset');
-  };
-  
+
   const total = votes.green + votes.yellow + votes.red;
   
   return isAdmin ? (
